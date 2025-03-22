@@ -1,6 +1,7 @@
 const CartItem = require('../models/CartItem');
 const User = require('../models/User');
 const History = require('../models/History');
+const { sendEmail } = require('../utils/emailService');
 
 // Get cart items for a user
 exports.getUserCart = async (req, res) => {
@@ -26,10 +27,14 @@ exports.addToCart = async (req, res) => {
     const savedItem = await cartItem.save();
     
     // Add to user's bookedCart
-    await User.findByIdAndUpdate(
+    const user = await User.findByIdAndUpdate(
       req.body.user,
-      { $push: { bookedCart: savedItem._id } }
+      { $push: { bookedCart: savedItem._id } },
+      { new: true }
     );
+
+    // Send order confirmation email
+    await sendEmail(user.email, 'orderConfirmation', savedItem);
     
     res.status(201).json(savedItem);
   } catch (error) {
@@ -97,10 +102,15 @@ exports.updateStatus = async (req, res) => {
       req.params.id,
       { status },
       { new: true, runValidators: true }
-    );
+    ).populate('user');
+
     if (!cartItem) {
       return res.status(404).json({ message: 'Cart item not found' });
     }
+
+    // Send status update email
+    await sendEmail(cartItem.user.email, 'orderStatusUpdate', cartItem);
+
     res.json(cartItem);
   } catch (error) {
     res.status(400).json({ message: error.message });
