@@ -1,0 +1,10 @@
+{
+  "require": ["dotenv/config", "src/test/setup.js"],
+  "extension": ["js"],
+  "spec": "src/test/**/*.test.js",
+  "timeout": 5000,
+  "exit": true,
+  "recursive": true,
+  "colors": true,
+  "reporter": "spec"
+} 

@@ -46,15 +46,31 @@ exports.createUser = async (req, res) => {
     
     // Save user
     await user.save();
+    
+    console.log(`👤 User registered: ${user.name} (${user.email}), ID: ${user._id}`);
 
-    // Send verification email
-    await sendEmail(user.email, 'verifyEmail', verificationToken);
+    // Send verification email - handle the case if email sending is disabled in development
+    let emailSent = false;
+    try {
+      emailSent = await sendEmail(user.email, 'verifyEmail', verificationToken);
+      if (emailSent) {
+        console.log(`📧 Verification email sent to ${user.email}`);
+      } else {
+        console.warn(`⚠️ Verification email not sent to ${user.email} - email service might not be configured`);
+      }
+    } catch (emailError) {
+      console.error('❌ Email sending error:', emailError);
+      // Continue even if email fails
+    }
 
     res.status(201).json({ 
-      message: 'Registration successful. Please check your email to verify your account.',
+      message: emailSent 
+        ? 'Registration successful. Please check your email to verify your account.'
+        : 'Registration successful. Email verification could not be sent.',
       userId: user._id 
     });
   } catch (error) {
+    console.error('❌ User registration error:', error);
     res.status(400).json({ message: error.message });
   }
 };
@@ -91,20 +107,39 @@ exports.verifyEmail = async (req, res) => {
 // Request password reset
 exports.forgotPassword = async (req, res) => {
   try {
-    const user = await User.findOne({ email: req.body.email });
+    const { email } = req.body;
+    console.log(`🔄 Password reset requested for email: ${email}`);
+    
+    const user = await User.findOne({ email });
     if (!user) {
+      console.log(`❌ Password reset failed: Email ${email} not found`);
       return res.status(404).json({ message: 'User not found' });
     }
 
     // Generate reset token
     const resetToken = user.generatePasswordResetToken();
     await user.save();
+    console.log(`🔑 Password reset token generated for user: ${user._id}`);
 
     // Send password reset email
-    await sendEmail(user.email, 'passwordReset', resetToken);
+    let emailSent = false;
+    try {
+      emailSent = await sendEmail(user.email, 'passwordReset', resetToken);
+    } catch (emailError) {
+      console.error('❌ Error sending password reset email:', emailError);
+    }
 
-    res.json({ message: 'Password reset email sent' });
+    if (emailSent) {
+      res.json({ message: 'Password reset email sent' });
+    } else {
+      console.warn(`⚠️ Password reset email could not be sent to ${email}`);
+      res.json({ 
+        message: 'Password reset requested. If your email is registered, you will receive reset instructions.',
+        success: false
+      });
+    }
   } catch (error) {
+    console.error('❌ Password reset error:', error);
     res.status(500).json({ message: error.message });
   }
 };
@@ -259,15 +294,56 @@ exports.refreshToken = async (req, res) => {
 // Logout user
 exports.logoutUser = async (req, res) => {
   try {
-    const { refreshToken } = req.body;
-    
-    // Find user and remove refresh token
-    await User.findOneAndUpdate(
-      { refreshToken },
-      { $unset: { refreshToken: 1 } }
-    );
-
+    const user = await User.findById(req.user._id);
+    if (user) {
+      user.refreshToken = undefined;
+      await user.save();
+    }
     res.json({ message: 'Logged out successfully' });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// Get user profile
+exports.getUserProfile = async (req, res) => {
+  try {
+    const user = await User.findById(req.user._id).select('-password -refreshToken');
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+    res.json(user);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// Update user profile
+exports.updateUserProfile = async (req, res) => {
+  try {
+    const user = await User.findByIdAndUpdate(
+      req.user._id,
+      req.body,
+      { new: true, runValidators: true }
+    ).select('-password -refreshToken');
+    
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+    res.json(user);
+  } catch (error) {
+    res.status(400).json({ message: error.message });
+  }
+};
+
+// Delete user profile
+exports.deleteUserProfile = async (req, res) => {
+  try {
+    const user = await User.findByIdAndDelete(req.user._id);
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+    res.json({ message: 'Profile deleted successfully' });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }

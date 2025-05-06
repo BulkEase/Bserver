@@ -17,15 +17,22 @@ app.use(express.urlencoded({ extended: true }));
 
 // Create uploads directory if it doesn't exist
 const fs = require('fs');
-const uploadDir = path.join(__dirname, '../tmp/uploads');
+const uploadDir = path.join(__dirname, '../uploads');
 if (!fs.existsSync(uploadDir)) {
   fs.mkdirSync(uploadDir, { recursive: true });
 }
+
+// Serve static files from uploads directory in development mode
+app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 
 // MongoDB Connection
 mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/bulkease')
   .then(() => console.log('Connected to MongoDB'))
   .catch((err) => console.error('MongoDB connection error:', err));
+
+// API Documentation
+const docsRoutes = require('./routes/docsRoutes');
+app.use('/docs', docsRoutes);
 
 // Routes
 const apiRoutes = require('./routes');
@@ -70,4 +77,5 @@ app.use((err, req, res, next) => {
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
+  console.log(`API Documentation: http://localhost:${PORT}/docs`);
 }); 

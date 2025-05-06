@@ -61,7 +61,8 @@ const verifyRefreshToken = async (req, res, next) => {
   }
 };
 
-exports.authenticate = async (req, res, next) => {
+// Verify JWT token
+const authenticate = async (req, res, next) => {
   try {
     // Get token from header
     const authHeader = req.headers.authorization;
@@ -106,5 +107,6 @@ module.exports = {
   verifyToken,
   isAdmin,
   isOwner,
-  verifyRefreshToken
+  verifyRefreshToken,
+  authenticate
 }; 

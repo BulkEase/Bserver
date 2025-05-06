@@ -25,6 +25,7 @@ exports.addToCart = async (req, res) => {
   try {
     const cartItem = new CartItem(req.body);
     const savedItem = await cartItem.save();
+    console.log(`🛒 New cart item added: ${savedItem._id} for user ${req.body.user}`);
     
     // Add to user's bookedCart
     const user = await User.findByIdAndUpdate(
@@ -34,10 +35,20 @@ exports.addToCart = async (req, res) => {
     );
 
     // Send order confirmation email
-    await sendEmail(user.email, 'orderConfirmation', savedItem);
+    try {
+      const emailSent = await sendEmail(user.email, 'orderConfirmation', savedItem);
+      if (emailSent) {
+        console.log(`📧 Order confirmation email sent to ${user.email} for order ${savedItem._id}`);
+      } else {
+        console.warn(`⚠️ Order confirmation email not sent to ${user.email} - email service might not be configured`);
+      }
+    } catch (emailError) {
+      console.error(`❌ Error sending order confirmation email to ${user.email}:`, emailError);
+    }
     
     res.status(201).json(savedItem);
   } catch (error) {
+    console.error('❌ Error adding item to cart:', error);
     res.status(400).json({ message: error.message });
   }
 };
@@ -98,6 +109,8 @@ exports.removeFromCart = async (req, res) => {
 exports.updateStatus = async (req, res) => {
   try {
     const { status } = req.body;
+    console.log(`🔄 Updating cart item ${req.params.id} status to: ${status}`);
+    
     const cartItem = await CartItem.findByIdAndUpdate(
       req.params.id,
       { status },
@@ -105,14 +118,25 @@ exports.updateStatus = async (req, res) => {
     ).populate('user');
 
     if (!cartItem) {
+      console.log(`❌ Cart item ${req.params.id} not found for status update`);
       return res.status(404).json({ message: 'Cart item not found' });
     }
 
     // Send status update email
-    await sendEmail(cartItem.user.email, 'orderStatusUpdate', cartItem);
+    try {
+      const emailSent = await sendEmail(cartItem.user.email, 'orderStatusUpdate', cartItem);
+      if (emailSent) {
+        console.log(`📧 Order status update email sent to ${cartItem.user.email} for order ${cartItem._id}`);
+      } else {
+        console.warn(`⚠️ Order status update email not sent to ${cartItem.user.email} - email service might not be configured`);
+      }
+    } catch (emailError) {
+      console.error(`❌ Error sending order status update email to ${cartItem.user.email}:`, emailError);
+    }
 
     res.json(cartItem);
   } catch (error) {
+    console.error('❌ Error updating cart item status:', error);
     res.status(400).json({ message: error.message });
   }
 }; 
